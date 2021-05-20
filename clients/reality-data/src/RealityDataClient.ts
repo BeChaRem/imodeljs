@@ -8,7 +8,7 @@
  */
 import { ClientRequestContext, Config, Guid } from "@bentley/bentleyjs-core";
 import {
-  AuthorizedClientRequestContext, ECJsonTypeMap, getArrayBuffer, getJson, RequestQueryOptions, WsgClient, WsgInstance,
+  AuthorizedClientRequestContext, ECJsonTypeMap, getArrayBuffer, getJson,  request, RequestOptions, RequestQueryOptions, WsgClient, WsgInstance,
 } from "@bentley/itwin-client";
 import { URL } from "url";
 
@@ -192,6 +192,23 @@ export class RealityData extends WsgInstance {
   }
 
   /**
+   * Gets string url to fetch blob data from. Access is read-only.
+   * @param requestContext The client request context.
+   * @param name name or path of tile
+   * @param nameRelativeToRootDocumentPath (optional default is false) Indicates if the given name is relative to the root document path.
+   * @returns string url for blob data
+   */
+  public getWSGFileStringUrl(name: string, nameRelativeToRootDocumentPath: boolean = false ): string {
+    if(nameRelativeToRootDocumentPath) {
+      const wsgName: string = name.replace(/\//g, "~2F");
+      return `/Repositories/S3MXECPlugin--${this.projectId}/S3MX/Document/${this.id}~2F${wsgName}/$File`;
+    } else{
+      const wsgName: string = name.replace(/\//g, "~2F");
+      return `/Repositories/S3MXECPlugin--${this.projectId}/S3MX/Document/${this.id}~2F${wsgName}/$File`;
+    }
+  }
+
+  /**
    * Gets a tileset's tile data
    * @param requestContext The client request context.
    * @param name name or path of tile
@@ -254,12 +271,19 @@ export class RealityData extends WsgInstance {
    */
   public async getTileJson(requestContext: AuthorizedClientRequestContext, name: string, nameRelativeToRootDocumentPath: boolean = false): Promise<any> {
     requestContext.enter();
-    const stringUrl = await this.getBlobStringUrl(requestContext, name, nameRelativeToRootDocumentPath);
-    requestContext.enter();
+    let url = await this.client?.getUrl(requestContext);
+    const stringUrl = this.getWSGFileStringUrl(name, nameRelativeToRootDocumentPath);
+    url = url + stringUrl;
 
-    const data = await getJson(requestContext, stringUrl);
     requestContext.enter();
-    return data;
+    const options: RequestOptions = {
+      method: "GET",
+      responseType: "json",
+      headers: {authorization: requestContext.accessToken.toTokenString() } ,
+    };
+    const data = await request(requestContext, url, options);
+    requestContext.enter();
+    return data.body;
   }
 
   /**
@@ -271,12 +295,19 @@ export class RealityData extends WsgInstance {
    */
   public async getTileContent(requestContext: AuthorizedClientRequestContext, name: string, nameRelativeToRootDocumentPath: boolean = false): Promise<any> {
     requestContext.enter();
-    const stringUrl = await this.getBlobStringUrl(requestContext, name, nameRelativeToRootDocumentPath);
-    requestContext.enter();
+    let url = await this.client?.getUrl(requestContext);
+    const stringUrl = this.getWSGFileStringUrl(name, nameRelativeToRootDocumentPath);
+    url = url + stringUrl;
 
-    const data = await getArrayBuffer(requestContext, stringUrl);
     requestContext.enter();
-    return data;
+    const options: RequestOptions = {
+      method: "GET",
+      responseType: "arraybuffer",
+      headers: {authorization: requestContext.accessToken.toTokenString() } ,
+    };
+    const data = await request(requestContext, url, options);
+    requestContext.enter();
+    return data.body;
   }
 
   /**
